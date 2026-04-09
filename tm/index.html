@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>TrotaMundos - PoLAR</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Special+Elite&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+  <link rel="preload" href="https://fonts.gstatic.com/s/specialelite/v18/XLYgIZbkc46tvqgoxjPpwBsHo4LeXrM.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="https://fonts.gstatic.com/s/vt323/v17/pxiKyp0ihIEF2hsYHpT2dkNE.woff2" as="font" type="font/woff2" crossorigin>
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+  
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #eee;
+    }
+
+    :not(:defined) > * {
+      display: none;
+    }
+
+    model-viewer {
+      width: 100%;
+      height: 100%;
+      background-color: #eee;
+      overflow-x: hidden;
+    }
+
+    #loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #eee;
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: contain;
+      pointer-events: none;
+      z-index: 10;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
+
+    #loading-overlay.hidden {
+      opacity: 0;
+    }
+
+    #ar-button {
+      background-image: url('https://artic17.github.io/ar/ar_view.png');
+      background-repeat: no-repeat;
+      background-size: 20px 20px;
+      background-position: 12px 50%;
+      background-color: #fff;
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      top: 82px;
+      padding: 0px 11px 0px 40px;
+      font-family: 'VT323', monospace;
+      font-size: 24px;
+      color: #505050;
+      height: 36px;
+      line-height: 32px;
+      border-radius: 6px;
+      border: 2px solid #505050;
+    }
+
+    #ar-button:active { background-color: #E8EAED; }
+    #ar-button:focus { outline: none; }
+    #ar-button:focus-visible { outline: 1px solid #4285f4; }
+
+    @keyframes circle {
+      from { transform: translateX(-50%) rotate(0deg) translateX(50px) rotate(0deg); }
+      to   { transform: translateX(-50%) rotate(360deg) translateX(50px) rotate(-360deg); }
+    }
+
+    @keyframes elongate {
+      from { transform: translateX(100px); }
+      to   { transform: translateX(-100px); }
+    }
+
+    model-viewer > #ar-prompt {
+      position: absolute;
+      left: 50%;
+      bottom: 175px;
+      animation: elongate 2s infinite ease-in-out alternate;
+      display: none;
+    }
+
+    model-viewer[ar-status="session-started"] > #ar-prompt { display: block; }
+    model-viewer > #ar-prompt > img { animation: circle 4s linear infinite; }
+
+    model-viewer > #ar-failure {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 175px;
+      display: none;
+    }
+
+    model-viewer[ar-tracking="not-tracking"] > #ar-failure { display: block; }
+
+	#refresh-trait {
+	  position: fixed;
+	  bottom: 24px;
+	  left: 50%;
+	  transform: translateX(-50%);
+	  white-space: nowrap;
+	  z-index: 30;
+	  background-image: url('https://artic17.github.io/ar/reroll.png');
+	  background-repeat: no-repeat;
+	  background-size: 20px 20px;
+	  background-position: 12px 50%;
+	  background-color: #fff;
+	  border: 2px solid #505050;
+	  border-radius: 6px;
+	  font-family: 'VT323', monospace;
+	  font-size: 24px;
+	  color: #505050;
+	  height: 36px;
+	  line-height: 32px;
+	  padding: 0px 11px 0px 40px;
+	  cursor: pointer;
+	}
+
+    #refresh-trait:active { background-color: #E8EAED; }
+  </style>
+</head>
+<body>
+
+  <model-viewer 
+    src="https://artic17.github.io/ar/polar-oid.glb" 
+    poster="https://artic17.github.io/ar/tm/poster_tm.webp"
+    orientation="0deg -30deg 0deg"
+    shadow-intensity="1" 
+    ar 
+    camera-controls 
+    touch-action="pan-y" 
+    alt="A 3D model carousel">
+    
+    <button slot="ar-button" id="ar-button">
+      VIEW IN YOUR SPACE
+    </button>
+    
+    <div id="ar-prompt">
+      <img src="https://artic17.github.io/ar/hand.png">
+    </div>
+    
+    <button id="ar-failure">
+      AR is not tracking!
+    </button>
+
+    <div id="loading-overlay" style="background-image: url('https://artic17.github.io/ar/tm/poster_tm.webp');"></div>
+  </model-viewer>
+
+  <button id="refresh-trait">REROLL PoLAR</button>
+
+  <script type="module">
+    const modelViewer = document.querySelector("model-viewer");
+    const overlay = document.getElementById("loading-overlay");
+
+    // ── Traits pool ──
+    const TRAITS = {
+	BOOK:    ['1984', 'Dune', 'Moby Dick', 'The Great Gatsby', 'To Kill a Mockingbird', 'Pride and Prejudice', 'Fahrenheit 451', 'The Catcher in the Rye', 
+			  'The Hobbit', 'The Lord of the Rings', 'Harry Potter', 'The Alchemist', 'Brave New World', 'Frankenstein', 'Dracula', 'Jane Eyre', 'Wuthering Heights', 
+			  'The Odyssey', 'The Iliad', 'Crime and Punishment', 'The Brothers Karamazov', 'Anna Karenina', 'War and Peace', 'Les Misérables', 'The Count of Monte Cristo', 
+			  'Don Quixote', 'One Hundred Years of Solitude', 'The Kite Runner', "The Handmaid\'s Tale", 'The Hunger Games', 'Catch-22', 'Slaughterhouse-Five', 'The Bell Jar', 
+			  'The Picture of Dorian Gray', 'Alice in Wonderland', 'Peter Pan', 'Treasure Island', 'The Chronicles of Narnia', 'A Tale of Two Cities', 'Great Expectations', 
+			  'The Grapes of Wrath', 'East of Eden', 'The Old Man and the Sea', 'The Little Prince', 'The Secret Garden', 'The Color Purple', 'Beloved', 'Invisible Man', 
+			  'Life of Pi', 'The Martian'],
+
+	ARTWORK:    ['The Thinker', 'Starry Night', 'The Great Wave off Kanagawa', 'Mona Lisa', 'The Last Supper', 'Creation of Adam', 'David', 'Venus de Milo', 
+				 'Girl with a Pearl Earring', 'The Kiss', 'The Scream', 'Guernica', 'Persistence of Memory', 'American Gothic', 'Nighthawks', 'Water Lilies', 
+				 'Impression Sunrise', 'Las Meninas', 'The Night Watch', 'The Birth of Venus', 'The Arnolfini Portrait', 'The Garden of Earthly Delights', 'The School of Athens', 
+				 'Liberty Leading the People', 'The Raft of the Medusa', 'Wanderer above the Sea of Fog', 'The Hay Wain', 'The Gleaners', 'Olympia', 'A Sunday on La Grande Jatte', 
+				 'The Card Players', 'The Dance', "Les Demoiselles d\'Avignon", 'Composition VIII', 'Number 1A', "Campbell\'s Soup Cans", 'Marilyn Diptych', 'Whaam!', 'Balloon Dog', 
+				 'For the Love of God', 'The Physical Impossibility of Death', 'Fountain', 'Bird in Space', 'Unique Forms of Continuity in Space', 'Maman', 'Cloud Gate', 
+				 'Spiral Jetty', 'The Lightning Field', 'Sunflowers', 'Pietà'],
+
+	PET:    ['Dog', 'Cat', 'Iguana', 'Chicken', 'Parrot', 'Pigeon', 'Hamster', 'Guinea Pig', 'Rabbit', 'Mouse', 'Rat', 'Gerbil', 'Chinchilla', 'Ferret', 'Hedgehog', 
+			 'Sugar Glider', 'Turtle', 'Tortoise', 'Snake', 'Lizard', 'Gecko', 'Chameleon', 'Frog', 'Toad', 'Salamander', 'Newt', 'Goldfish', 'Betta Fish', 'Koi', 
+			 'Guppy', 'Tetra', 'Cichlid', 'Angelfish', 'Oscar', 'Pleco', 'Corydoras', 'Shrimp', 'Snail', 'Crab', 'Hermit Crab', 'Tarantula', 'Scorpion', 'Millipede', 
+			 'Centipede', 'Goat', 'Alpaca', 'Horse', 'Pony', 'Donkey', 'Pig'],
+
+	TOTEM:    ['Cockatoo', 'Lucky Coin', 'Ticket Stub', 'Shell', 'Pocket Stone', 'Geode', 'Crystal', 'Arrowhead', 'Shark Tooth', 'Feather', 'Four-Leaf Clover',
+			   'Rabbit\'s Foot', 'Horseshoe', 'Wishbone', 'Dreamcatcher', 'Tarot Card', 'Fox', 'Marble', 'Deer', 'Skeleton Key', 'Padlock', 'Locket', 'Bear', 'Hawk', 
+			   'Raven', 'Pocket Knife', 'Compass', 'Magnifying Glass', 'Monocle', 'Spectacles', 'Pipe', 'Lighter', 'Matchbook', 'Scorpion', 'Postcard', 'Whistle', 
+			   'Bat', 'Letter', 'Journal', 'Panther', 'Blueprint', 'Acorn', 'Sketchbook', 'Fountain Pen', 'Crosshair Marker', 'Heirloom', 'Trophy', 'Medal', 'Ribbon', 'Patch'],
+
+	ITEM:    ['Coffee Mug', 'Tennis Racket', 'House Plant', 'Smartphone', 'Laptop', 'Keyboard', 'Window', 'Headphones', 'Microphone', 'Monitor', 'Water Bottle', 
+			  'Remote Control', 'Controller', 'Key', 'Wallet', 'Purse', 'Backpack', 'Suitcase', 'Umbrella', 'Sunglasses', 'Reading Glasses', 'Hat', 'Scarf', 'Gloves', 
+			  'Shoes', 'Boots', 'Sneakers', 'Socks', 'Watch', 'Ring', 'Necklace', 'Earring', 'Bracelet', 'Pen', 'Pencil', 'Marker', 'Notebook', 'Book', 'Magazine', 'Newspaper', 
+			  'Scissors', 'Tape', 'Mirror', 'Stapler', 'Paperclip', 'Calculator', 'Ruler', 'Protractor', 'Hole Punch', 'Eraser'],
+
+    TARGET:    ['Stop Sign', 'Yield Sign', 'Pedestrian Crossing Sign', 'Pepsi Can', 'Starbucks Cup', 'Traffic Light', 'FedEx Truck', 'Amazon Box', 'Fire Hydrant', 
+	            'Manhole Cover', 'Parking Meter', 'Recycle', 'Biohazard', 'Sony PlayStation', 'Disney Castle', 'KFC Bucket', 'Smiley Face', 'Caution Tape', 'Handicap', 
+				'Medical Cross', 'QR Code', 'Barcode', 'Sheet Music', 'Crossword Grid', 'Sudoku Grid', 'Street Map', 'Fingerprint', 'Topographic Lines', 'Braille Text', 
+				'Ace of Spades', 'King (Chess Piece)', 'Dice', 'Pool 8-Ball', 'Dartboard Bullseye', 'Archery Target', 'Reticle', 'Maze', 'Analog Clock', 'Sundial', 'Thermometer', 
+				'Speedometer', 'Telescope', 'Postage Stamp', 'Coin', 'Currency Note', 'Wax Seal', 'Star Constellation', 'Celtic Knot', 'Mandala', 'Chainlink Fence'],
+
+    LOCATION:  ['Eiffel Tower', 'Public Park', 'Near the Ocean', 'Times Square', 'Central Park', 'Grand Canyon', 'Mount Rushmore', 'Golden Gate Bridge', 'Statue of Liberty', 
+	            'Colosseum', 'Leaning Tower of Pisa', 'Vatican City', 'Acropolis', 'Parthenon', 'Stonehenge', 'Big Ben', 'London Eye', 'Tower Bridge', 'Louvre', 'Notre Dame', 
+				'Arc de Triomphe', 'Sagrada Familia', 'Alhambra', 'Machu Picchu', 'Christ the Redeemer', 'Chichen Itza', 'Taj Mahal', 'Great Wall of China', 'Forbidden City', 
+				'Terracotta Army', 'Mount Fuji', 'Tokyo Tower', 'Shibuya Crossing', 'Sydney Opera House', 'Burj Khalifa', 'Palm Jumeirah', 'Pyramids of Giza', 'Sphinx', 
+				'Table Mountain', 'Niagara Falls', 'Victoria Falls', 'Mount Everest', 'Sahara Desert', 'Amazon Rainforest', 'Great Barrier Reef', 'Yellowstone', 'Yosemite', 
+				'Zion', 'Glacier', 'Badlands'],
+
+    TEXTURE:   ['Brick Wall', 'Wooden Desk', 'Green Grass', 'Smooth Glass', 'Rough Concrete', 'Polished Marble', 'Rusted Metal', 'Corrugated Iron', 'Woven Fabric', 'Knitted Wool', 
+	            'Soft Velvet', 'Gummy Silicone', 'Bumpy Plastic', 'Fluffy Fur', 'Scaly Skin', 'Wet Sand', 'Dry Dirt', 'Gravel Path', 'Pebbled Beach', 'Tree Bark', 'Leaf Veins', 
+				'Flower Petal', 'Thorny Stem', 'Cactus Spine', 'Cobweb', 'Silk Thread', 'Wicker Basket', 'Straw Hat', 'Cardboard Box', 'Crumpled Paper', 'Aluminum Foil', 'Bubble Wrap', 
+				'Sponge', 'Foam', 'Rubber Tire', 'Asphalt Road', 'Chalkboard', 'Corkboard', 'Whiteboard', 'Ceramic Tile', 'Porcelain Sink', 'Stainless Steel', 'Cast Iron', 'Copper Pipe', 
+				'Brass Doorknob', 'Silver Spoon', 'Gold Ring', 'Diamond Facet', 'Pearl Surface'],
+
+    FLAVOR:    ['Chili Pepper', 'Lemon', 'Salt', 'Sugar', 'Black Pepper', 'Garlic', 'Onion', 'Ginger', 'Turmeric', 'Cinnamon', 'Nutmeg', 'Clove', 'Cardamom', 'Cumin', 'Coriander', 
+	            'Paprika', 'Oregano', 'Basil', 'Thyme', 'Rosemary', 'Mint', 'Cilantro', 'Parsley', 'Dill', 'Sage', 'Tarragon', 'Bay Leaf', 'Saffron', 'Vanilla', 'Chocolate', 
+				'Caramel', 'Butterscotch', 'Maple', 'Honey', 'Agave', 'Molasses', 'Soy Sauce', 'Teriyaki', 'Sriracha', 'Tabasco', 'Ketchup', 'Mustard', 'Mayonnaise', 'Relish', 'Vinegar', 
+				'Balsamic', 'Olive Oil', 'Sesame Oil', 'Peanut Butter', 'Jelly'],
+
+    RETRO:     ['Cassette Tape', 'CRT Monitor', 'D-Pad Controller', 'Vinyl Record', 'Floppy Disk', 'VHS Tape', 'CD-ROM', 'Walkman', 'Discman', 'Boombox', 'Rotary Phone', 'Payphone', 
+	            'Pager', 'Fax Machine', 'Typewriter', 'Film Camera', 'Polaroid Camera', 'Slide Projector', 'Dodge Challenger', 'Super 8 Camera', 'VCR', 'DVD Player', 'Game Boy', 
+				'NES Cartridge', 'Atari Joystick', 'Tamagotchi', 'Bop It', 'Furby', 'Pogs', 'Slammer', 'Beanie Baby', 'Troll Doll', 'View-Master', 'Etch A Sketch', 'Lite-Brite', 
+				'Easy-Bake Oven', 'Volkswagen Beetle', 'Nintendo', 'Magic 8 Ball', 'Slinky', 'Zoobles', 'Top', 'Marbles', 'Jacks', 'Chevrolet Chevelle SS', 'Hula Hoop', 
+				'Clackers', 'Skateboard', 'Tricycle', 'Pogo Stick'],
+
+    MOVIE:     ['Blade Runner', 'The Godfather', 'Spirited Away', 'The Matrix', 'Star Wars', 'Jurassic Park', 'Pulp Fiction', 'Inception', 'Interstellar', 'The Dark Knight', 
+	            'Fight Club', 'Forrest Gump', 'The Shawshank Redemption', 'Goodfellas', 'Titanic', 'Avatar', 'The Terminator', 'Alien', 'Jaws', 'E.T.', 'Indiana Jones', 
+				'Back to the Future', 'The Prestige', 'La La Land', 'The Avengers', 'Spider-Man', 'Toy Story', 'Finding Nemo', 'The Lion King', 'Beauty and the Beast', 'Aladdin', 
+				'The Wizard of Oz', 'Casablanca', 'Gone with the Wind', 'Citizen Kane', 'Psycho', 'The Shining', 'A Clockwork Orange', '2001: A Space Odyssey', 'Taxi Driver', 
+				'Apocalypse Now', 'The Silence of the Lambs', "Schindler's List", 'Gladiator', 'Braveheart', 'Mad Max: Fury Road', 'Parasite', 'Everything Everywhere All at Once', 
+				'Amélie', "Pan's Labyrinth"],
+
+    MUSIC:     ['Jazz', 'Synthwave', 'Classical', 'Hip Hop', 'Rock', 'Pop', 'R&B', 'Country', 'Electronic', 'Reggae', 'Blues', 'Metal', 'Punk', 'Folk', 'Soul', 'Disco', 'Funk', 
+	            'Techno', 'House', 'Trance', 'Dubstep', 'Ambient', 'Lo-Fi', 'K-Pop', 'J-Pop', 'Reggaeton', 'Salsa', 'Bossa Nova', 'Flamenco', 'Mariachi', 'Afrobeat', 'Dancehall', 
+				'Ska', 'Grunge', 'Indie Rock', 'Alternative', 'Emo', 'Goth', 'Industrial', 'New Wave', 'Shoegaze', 'Dream Pop', 'Vaporwave', 'Electroclash', 'Cinematic', 
+				'Orchestral', 'Opera', 'Gospel', 'Choir', 'Acoustic'],
+
+    GAME:      ['The Legend of Zelda', 'Chess', 'Pac-Man', 'Tetris', 'Super Mario', 'Minecraft', 'Pokémon', 'World of Warcraft', 'League of Legends', 'Dota 2', 'Counter-Strike', 
+	            'Monopoly', 'Overwatch', 'Fortnite', 'Apex Legends', 'Call of Duty', 'Halo', 'Grand Theft Auto', 'Red Dead Redemption', 'The Witcher', 'Skyrim', 'Fallout', 
+				'Mass Effect', 'Dark Souls', 'Poker', 'Bloodborne', 'Bingo', 'Persona', 'Dragon Quest', 'Resident Evil', 'Silent Hill', 'Tomb Raider', 'Mahjong', 'The Last of Us', 
+				'God of War', 'Hollow Knight', "Assassin\'s Creed", 'Far Cry', 'Doom', 'Quake', 'Half-Life', 'Portal', 'Smash Bros', 'Mario Kart', 'Street Fighter', 'Mortal Kombat', 
+				'Scrabble', 'Animal Crossing', 'Stardew Valley', 'Go'],
+
+    HOBBY:     ['Woodworking', 'Pickling', 'Origami', 'Gardening', 'Knitting', 'Crocheting', 'Sewing', 'Quilting', 'Embroidery', 'Cross-Stitch', 'Painting', 'Drawing', 'Sculpting', 
+	            'Calligraphy', 'Photography', 'Videography', 'Baking', 'Charcuterie', 'Brewing', 'Winemaking', 'Reading', 'Writing', 'Poetry', 'Blogging', 'Podcasting', 
+				'Stamp Collecting', 'Coin Collecting', 'Antiquing', 'Thrift Shopping', 'Board Gaming', 'Roleplaying', 'Magic Tricks', 'Weaving', 'Yo-Yo', "Rubik\'s Cube", 
+				'Puzzles', 'Model Building', 'RC Cars', 'Drone Flying', 'Macramé', '3D Printing', 'Volunteering', 'Metal Detecting', 'Astronomy', 'Astrology', 'Tarot Reading', 
+				'Bonsai', 'Aquascaping', 'Terrarium Building'],
+
+    SKILL:     ['Cooking', 'Mechanics', 'First Aid', 'Navigation', 'Coding', 'Carpentry', 'Plumbing', 'Electrical Work', 'Welding', 'Blacksmithing', 'Lockpicking', 'Survival', 
+	            'Tracking', 'Hunting', 'Fishing', 'Farming', 'Animal Husbandry', 'Tailoring', 'Leatherworking', 'Shoemaking', 'Bookbinding', 'Paper Making', 'Glassblowing', 
+				'Pottery', 'Jewelry Making', 'Watchmaking', 'Public Speaking', 'Negotiation', 'Translation', 'Sign Language', 'Speed Reading', 'Memory Techniques', 'Mental Math', 
+				'Cryptography', 'Bow Crafting', 'Swordplay', 'Martial Arts', 'Parkour', 'Sharpshooting', 'Marksmanship', 'Juggling', 'Playing Piano', 'Playing Guitar', 'Singing', 
+				'Beatboxing', 'DJing', 'Sound Engineering', 'Video Editing', '3D Modeling'],
+
+    SPORT:     ['Tennis', 'Boxing', 'Fencing', 'Archery', 'Soccer', 'Basketball', 'Baseball', 'Football', 'Rugby', 'Cricket', 'Hockey', 'Volleyball', 'Table Tennis', 'Badminton', 
+	            'Squash', 'Golf', 'Bowling', 'Billiards', 'Darts', 'Swimming', 'Diving', 'Water Polo', 'Lacrosse', 'Snowboarding', 'Skiing', 'Ice Skating', 'Figure Skating', 
+				'Roller Skating', 'Formula 1', 'BMX', 'Cycling', 'Mountain Biking', 'Running', 'Sprinting', 'Marathon', 'Triathlon', 'Gymnastics', 'Weightlifting', 'Powerlifting', 
+				'Bodybuilding', 'Wrestling', 'Judo', 'Karate', 'Taekwondo', 'Mixed Martial Arts', 'Polo', 'Racquetball', 'Rowing', 'Catamaran Racing', 'Equestrian'],
+
+    ADVENTURE:  ['Hiking', 'Camping', 'Kayaking', 'Stargazing', 'Backpacking', 'Mountaineering', 'Rock Climbing', 'Bouldering', 'Caving', 'Spelunking', 'Canyoning', 'Rafting', 
+	             'Canoeing', 'Scuba Diving', 'Snorkeling', 'Free Diving', 'Surfing', 'Kiteboarding', 'Windsurfing', 'Paddleboarding', 'Sailing', 'Deep Sea Fishing', 'Skydiving', 
+				 'Paragliding', 'Hang Gliding', 'Bungee Jumping', 'Base Jumping', 'Ziplining', 'Hot Air Ballooning', 'Safari', 'Wildlife Photography', 'Overlanding', 'Via Ferrata', 
+				 'Geocaching', 'Treasure Hunting', 'Urban Exploration', 'Ghost Hunting', 'Storm Chasing', 'Road Tripping', 'Hitchhiking', 'Bikepacking', 'Cruise', 'Polar Expedition', 
+				 'Desert Trekking', 'Jungle Trekking', 'Volcano Boarding', 'Ice Climbing', 'Glamping', 'Sandboarding', 'Scavenger Hunt'],
+
+    SCENT:      ['Petrichor', 'Old Books', 'Campfire', 'Pine', 'Roasted Coffee', 'Fresh Bread', 'Fresh Cut Grass', 'Ocean Breeze', 'Floral', 'Woody', 'Lavender', 'Rose', 'Jasmine', 
+	             'Citrus', 'Peppermint', 'Amber', 'Burnt Rubber', 'Bacon', 'Barbecue', 'Leather', 'Tobacco', 'Cigar', 'Sandalwood', 'Cedar', 'Eucalyptus', 'Spicy', 'Coconut', 'Sunscreen', 
+				 'Antiseptic', 'Incense', 'Mothballs', 'Skunk', 'Gasoline', 'Motor Oil', 'Paint', 'Glue', 'Permanent Marker', 'Chlorine', 'Bleach', 'Bubblegum', 'Ammonia', 'Sulfur', 
+				 'New Car', 'Garbage', 'Perfume', 'Cologne', 'Baby Powder', 'Soap', 'Shampoo', 'Apple Pie'],
+
+    VIBE:       ['Nostalgic', 'Melancholy', 'Stoic', 'Euphoric', 'Chill', 'Hype', 'Zen', 'Chaotic', 'Cozy', 'Claustrophobic', 'Liminal', 'Dreamy', 'Gritty', 'Glamorous', 'Tranquil', 
+	             'Frantic', 'Chic', 'Aggressive', 'Cottagecore', 'Dark Academia', 'Light Academia', 'Patina', 'Timeworn', 'Mallsoft', 'Penumbra', 'Bittersweet', 'Defiant', 'Rustic', 
+				 'Rebellious', 'Preppy', 'Y2K', 'Mid-Century Modern', 'Art Deco', 'Brutalist', 'Friendly', 'Futuristic', 'Apocalyptic', 'Post-Apocalyptic', 'Magical Realism', 'Surreal', 
+				 'Psychedelic', 'Groovy', 'Funky', 'Edgy', 'Wholesome', 'Romantic', 'Cynical', 'Optimistic', 'Pessimistic', 'Apathetic'],
+
+    VICE:       ['Greed', 'Pride', 'Envy', 'Lust', 'Gluttony', 'Wrath', 'Sloth', 'Vanity', 'Micromanagement', 'Vengeance', 'Spite', 'Entitlement', 'Forgery', 'Cyberbullying', 
+	             'Narcissism', 'Wastefulness', 'Catfishing', 'Binge-Watching', 'Doomscrolling', 'Quackery', 'Gambling', 'Overworking', 'Bribery', 'Swearing', 'Nail Biting', 
+				 'Knuckle Cracking', 'Eavesdropping', 'Theft', 'Poaching', 'Bootlegging', 'Jaywalking', 'Littering', 'Hoarding', 'Gossiping', 'Procrastinating', 'Plagiarism', 
+				 'Cheating', 'Arson', 'Humblebragging', 'Mansplaining', 'Overthinking', 'Trespassing', 'Vandalism', 'Screen Addiction', 'Bottling Emotions', 'Compulsive Shopping', 
+				 'Drinking', 'Avarice', 'Smoking'],
+
+    SECRET:     ['Hidden Goal', 'Imposter Syndrome', 'Trust Issues', 'Social Anxiety', 'Curated Self', 'Latent Dread', 'Covert Envy', 'Inner Conflict', 'Suppressed Desire', 
+	             'Bottled Rage', 'Restlessness', 'Unspoken Truth', 'Quiet Resentment', 'Disguised Object', 'Unshared Joy', 'Private Ritual', 'Decoy Item', 'Concealed Note', 
+				 'Unspoken Grief', 'Guilty Conscience', 'Parenting Fear', 'Financial Shame', 'Buried Treasure', 'Creative Embarrassment', 'Unspoken Apology', 'Wish', 'Jealousy', 
+				 'Dating Frustration', 'Fitness Struggle', 'Childhood Memory', 'Dormant Bitterness', 'Impulse Spending', 'Hidden Debt', 'Loneliness', 'Untold Story', 'Career Doubt', 
+				 'Romantic Desire', 'Guilty Pleasure Hobby', 'Hidden Talent', 'Afraid of Dark', 'Unrequited Love', 'Stolen Goods', 'Hidden Bug', 'Invisible Ink', 'Fake Wall', 
+				 'Nanny Cam', 'Smuggler\' Flask', 'Marked Cards', 'Blackmail Folder', 'Stashed Cash'],
+
+    ORIGIN:     ['Parallel Dimension', 'Asteroid Belt', 'Underworld', 'Sky Realm', 'Wasteland', 'Metropolis', 'Archipelago', 'Prairie', 'Swamp', 'Canyon', 'Frostfell', 'Volcano', 
+	             'Reef', 'Tundra', 'Jungle', 'Cave', 'Atompunk', 'Utopian', 'Gothic', 'Roaring Twenties', 'Mythic Age', 'Industrial Revolution', 'Miami', 'Dystopian', 'Fairy Tale', 
+				 'Mountain', 'The Desert', 'Ocean', 'Island', 'Valley', 'City', 'Suburbs', 'Countryside', 'Farm', 'Village', 'Space Station', 'The Future', 'The Past', 
+				 'The 80s', 'The 70s', 'The 60s', 'The 2000s', 'Victorian Era', 'Renaissance', 'Medieval', 'Ancient Rome', 'Ancient Egypt', 'Ancient Greece', 
+				 'Cyberpunk City', 'Steampunk City'],
+
+    CHRONO:     ['Golden Hour', 'Blue Hour', 'Sunrise', 'Full Moon', 'Crescent Moon', 'Sunset', 'Dawn', 'Rush Hour', 'Breakfast Time', 'Morning Coffee', 'Closing Time', 
+	             'Midnight Snack', 'Christmas', 'Halloween', 'Valentine\'s Day', 'Easter', 'Thanksgiving', 'Independence Day', 'New Year\'s Eve', 'Birthday', 'Hourglass', 
+				 'Melted Candle', 'Eclipse', 'Pocket Watch', 'Countdown', 'Blinking 12:00', 'Fossil', 'Stopwatch', 'Wall Calendar', 'Rust', 'Wilting', 'Rot', 'Groundhog Day', 
+				 'Peeling Paint', 'Overgrown', 'Sun-Bleached', 'Erosion', 'Winter', 'Autumn', 'Spring', 'Summer', 'Epoch Marker', 'Kitchen Timer', 'Solstice', 'Tree Rings', 
+				 'Morning Dew', 'Sprout', 'Pill Organizer', 'Long Shadow', 'Timecard'],
+
+    METEO:      ['Rain Puddle', 'Snowbank', 'Overcast Sky', 'Fog', 'Clear Blue Sky', 'Cumulus Clouds', 'Cirrus Clouds', 'Stratus Clouds', 'Cumulonimbus', 'Thunderstorm', 
+	             'Lightning Strike', 'Rainbow', 'Double Rainbow', 'Hail', 'Sleet', 'Freezing Rain', 'Blizzard', 'Flurry', 'Frost', 'Dew', 'Mist', 'Smog', 'Haze', 'Dust Storm', 
+				 'Sandstorm', 'Tornado', 'Hurricane', 'Typhoon', 'Lenticular Cloud', 'Waterspout', 'Sun Dog', 'Dimmerfoehn', 'Aurora Borealis', 'Heatwave', 'Cold Snap', 'Gust', 
+				 'Zephyr', 'Gale', 'Squall', 'Monsoon', 'Drizzle', 'Downpour', 'Flash Flood', 'Drought', 'Volcanic Ash', 'Sun Pillar', 'Whiteout', 'Black Ice', 'Sunshower', 'Virga'],
+
+    AMBIENCE:   ['Cafe Chatter', 'Heavy Traffic', 'Concert Roar', 'Dead Silence', 'Library Whisper', 'Office Hum', 'Server Room Drone', 'Air Conditioner Whir', 'Refrigerator Buzz', 
+	             'Ceiling Fan Woosh', 'Distant Train', 'Subway Rumble', 'Airplane Cabin', 'Ship Engine', 'Harbor Creak', 'Ocean Waves', 'River Babble', 'Waterfall Roar', 
+				 'Rain on Tin Roof', 'Thunder Rumble', 'Wind in Trees', 'Rustling Leaves', 'Crickets Chirping', 'Cicadas Buzzing', 'Frogs Croaking', 'Birds Singing', 'Owl Hooting', 
+				 'Wolf Howling', 'City Murmur', 'Crowd Cheering', 'Stadium Roar', 'Playground Laughter', 'Hallway Echo', 'Mall Echo', 'Grocery Store Beeps', 'Hospital Beeps', 
+				 'Factory Clang', 'Construction Jackhammer', 'Sirens Wailing', 'Church Bells', 'Clock Ticking', 'Metronome', 'Heartbeat', 'Breathing', 'Footsteps on Gravel', 
+				 'Creaking Floorboards', 'Crackling Fire', 'Sizzling Pan', 'Boiling Water', 'Dripping Faucet'],
+
+    SOUND:      ['Dog Bark', 'Police Siren', 'Glass Shattering', 'Car Horn', 'Bicycle Bell', 'Train Whistle', 'Airplane Takeoff', 'Helicopter Rotor', 'Gunshot', 'Explosion', 
+	             'Fireworks', 'Thunderclap', 'Doorbell', 'Knock on Door', 'Door Creak', 'Door Slam', 'Key Turning', 'Cash Register Ding', 'Coin Drop', 'Phone Ring', 'Text Notification', 
+				 'Keyboard Typing', 'Mouse Click', 'Camera Shutter', 'Zipper', 'Velcro Rip', 'Scissors Cutting', 'Paper Tearing', 'Page Turning', 'Match Striking', 'Lighter Flick', 
+				 'Spray Mist', 'Soda Can Opening', 'Bottle Pop', 'Pouring Liquid', 'Drinking Gulp', 'Bite of Apple', 'Chewing Crunch', 'Slurping', 'Burp', 'Sneeze', 'Cough', 'Yawn', 
+				 'Sigh', 'Laugh', 'Cry', 'Scream', 'Whistle', 'Clap', 'Snap'],
+    };
+
+    // ── Per-card data ──
+    const SLIDES = [
+      { photo: 'https://artic17.github.io/ar/tm/tm3.webp', title: 'TROTAMUNDO #3', backLeft: 'PROOF of LIFE // A.R.', backRight: 'PoLAR-oid' },
+      { photo: 'https://artic17.github.io/ar/tm/tm8.webp', title: 'TROTAMUNDO #8', backLeft: 'PROOF of LIFE // A.R.', backRight: 'PoLAR-oid' },
+      { photo: 'https://artic17.github.io/ar/tm/tm9.webp', title: 'TROTAMUNDO #9', backLeft: 'PROOF of LIFE // A.R.', backRight: 'PoLAR-oid' },
+      { photo: 'https://artic17.github.io/ar/tm/tm11.webp', title: 'TROTAMUNDO #11', backLeft: 'PROOF of LIFE // A.R.', backRight: 'PoLAR-oid' },
+      { photo: 'https://artic17.github.io/ar/tm/tm16.webp', title: 'TROTAMUNDO #16', backLeft: 'PROOF of LIFE // A.R.', backRight: 'PoLAR-oid' },
+      { photo: 'https://artic17.github.io/ar/tm/tm19.webp', title: 'TROTAMUNDO #19', backLeft: 'PROOF of LIFE // A.R.', backRight: 'PoLAR-oid' },
+      { photo: 'https://artic17.github.io/ar/tm/tm20.webp', title: 'TROTAMUNDO #20', backLeft: 'PROOF of LIFE // A.R.', backRight: 'PoLAR-oid' },
+      { photo: 'https://artic17.github.io/ar/tm/tm21.webp', title: 'TROTAMUNDO #21', backLeft: 'PROOF of LIFE // A.R.', backRight: 'PoLAR-oid' },
+      { photo: 'https://artic17.github.io/ar/tm/tm22.webp', title: 'TROTAMUNDO #22', backLeft: 'PROOF of LIFE // A.R.', backRight: 'PoLAR-oid' },
+      { photo: 'https://artic17.github.io/ar/tm/tm26.webp', title: 'TROTAMUNDO #26', backLeft: 'PROOF of LIFE // A.R.', backRight: 'PoLAR-oid' },	  
+    ];
+
+    let slideCache = null;
+    let slidePicked = null;
+    let currentSlide = 0;
+    let modelReady = false;
+    let originalFrameUrl = null;
+    let originalBackUrl = null;
+	const photoCache = {};
+
+    // Preload all photos
+    SLIDES.forEach(s => { new Image().src = s.photo; });
+
+    // Preload GLB in hidden instance
+    const mv0 = document.createElement('model-viewer');
+    mv0.src = 'https://artic17.github.io/ar/polar-oid.glb';
+    mv0.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;';
+    document.body.appendChild(mv0);
+
+	function pickRandomSlide() {
+	  // Pick random slide different from current
+	  let newIndex;
+	  do {
+		newIndex = Math.floor(Math.random() * SLIDES.length);
+	  } while (newIndex === currentSlide && SLIDES.length > 1);
+	  currentSlide = newIndex;
+
+	  // Pick random trait — ensure full string is different from previous
+	  const keys = Object.keys(TRAITS);
+	  let key, value, candidate;
+	  do {
+		key = keys[Math.floor(Math.random() * keys.length)];
+		const values = TRAITS[key];
+		value = values[Math.floor(Math.random() * values.length)];
+		candidate = `${key}: ${value.toUpperCase()}`;
+	  } while (candidate === slidePicked);
+	  slidePicked = candidate;
+
+	  slideCache = null;
+	}
+
+    function loadImage(src, crossOrigin = "anonymous") {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        if (crossOrigin) img.crossOrigin = crossOrigin;
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+    }
+
+    function showOverlay() {
+      overlay.style.backgroundImage = 'none';
+      overlay.style.transition = 'none';
+      overlay.classList.remove('hidden');
+      overlay.offsetHeight;
+      overlay.style.transition = '';
+    }
+
+    function hideOverlay() {
+      overlay.classList.add('hidden');
+    }
+
+    function applyPBR() {
+      modelViewer.exposure = 1.2;
+      modelViewer.shadowIntensity = 1;
+      modelViewer.shadowSoftness = 0.7;
+      const materials = modelViewer.model.materials;
+      materials.forEach(mat => {
+        mat.pbrMetallicRoughness.setMetallicFactor(0.4);
+        mat.pbrMetallicRoughness.setRoughnessFactor(0.3);
+      });
+    }
+
+    async function applySlide() {
+      const index = currentSlide;
+      const slide = SLIDES[index];
+
+      // Re-apply from cache instantly
+      if (slideCache) {
+        const [photoTex, frameTex, backTex] = await Promise.all([
+          modelViewer.createTexture(slideCache.photoDataUrl),
+          modelViewer.createTexture(slideCache.frameDataUrl),
+          modelViewer.createTexture(slideCache.backDataUrl),
+        ]);
+        const photoMat = modelViewer.model.materials.find(m => m.name === 'PhotoMaterial');
+        const frameMat = modelViewer.model.materials.find(m => m.name === 'FrameMaterial');
+        const backMat  = modelViewer.model.materials.find(m => m.name === 'BackFrameMaterial');
+        if (photoMat) { photoMat.pbrMetallicRoughness.baseColorTexture.setTexture(photoTex); photoMat.pbrMetallicRoughness.setBaseColorFactor([1,1,1,1]); }
+        if (frameMat) { frameMat.pbrMetallicRoughness.baseColorTexture.setTexture(frameTex); frameMat.pbrMetallicRoughness.setBaseColorFactor([1,1,1,1]); }
+        if (backMat)  { backMat.pbrMetallicRoughness.baseColorTexture.setTexture(backTex);   backMat.pbrMetallicRoughness.setBaseColorFactor([1,1,1,1]); }
+        return;
+      }
+
+      // First visit — build and cache
+      const cache = {};
+
+      const applyPhoto = async () => {
+		if (!photoCache[slide.photo]) {
+		  const nftImage = await loadImage(slide.photo);
+		  const photoCanvas = document.createElement('canvas');
+		  photoCanvas.width = 1000;
+		  photoCanvas.height = 1000;
+		  const pCtx = photoCanvas.getContext('2d');
+		  pCtx.scale(1, -1);
+		  pCtx.translate(0, -1000);
+		  pCtx.drawImage(nftImage, 0, 0, 1000, 1000);
+		  photoCache[slide.photo] = photoCanvas.toDataURL();
+		}
+		cache.photoDataUrl = photoCache[slide.photo];
+        const photoTexture = await modelViewer.createTexture(cache.photoDataUrl);
+        const photoMat = modelViewer.model.materials.find(mat => mat.name === 'PhotoMaterial');
+        if (photoMat) {
+          photoMat.pbrMetallicRoughness.baseColorTexture.setTexture(photoTexture);
+          photoMat.pbrMetallicRoughness.setBaseColorFactor([1, 1, 1, 1]);
+        }
+      };
+
+      const applyFrameText = async () => {
+        const frameMat = modelViewer.model.materials.find(mat => mat.name === 'FrameMaterial');
+        if (!frameMat || !frameMat.pbrMetallicRoughness.baseColorTexture) return;
+        const textCanvas = document.createElement('canvas');
+        textCanvas.width = 880;
+        textCanvas.height = 1070;
+        const tCtx = textCanvas.getContext('2d');
+        if (!originalFrameUrl) originalFrameUrl = await frameMat.pbrMetallicRoughness.baseColorTexture.texture.source.createThumbnail(880, 1070);
+        const originalImg = await loadImage(originalFrameUrl);
+        tCtx.drawImage(originalImg, 0, 0, 880, 1070);
+        tCtx.save();
+        tCtx.scale(1, -1);
+        tCtx.translate(0, -1070);
+        tCtx.fillStyle = "#1a1a1a";
+        tCtx.textAlign = "center";
+        tCtx.textBaseline = "middle";
+        tCtx.font = "68px 'VT323', monospace";
+        tCtx.fillText(slide.title, 440, 920);
+        const line2Text = slidePicked;
+        tCtx.font = "56px 'VT323', monospace";
+        const maxWidth = 800;
+        const words = line2Text.split(' ');
+        let line = '';
+        let y = 980;
+        for (const word of words) {
+          const test = line ? line + ' ' + word : word;
+          if (tCtx.measureText(test).width > maxWidth && line) {
+            tCtx.fillText(line, 440, y);
+            line = word;
+            y += 50;
+          } else {
+            line = test;
+          }
+        }
+        tCtx.fillText(line, 440, y);
+        tCtx.restore();
+        cache.frameDataUrl = textCanvas.toDataURL();
+        const textTex = await modelViewer.createTexture(cache.frameDataUrl);
+        frameMat.pbrMetallicRoughness.baseColorTexture.setTexture(textTex);
+        frameMat.pbrMetallicRoughness.setBaseColorFactor([1, 1, 1, 1]);
+      };
+
+      const applyBackText = async () => {
+        const backMat = modelViewer.model.materials.find(mat => mat.name === 'BackFrameMaterial');
+        if (!backMat || !backMat.pbrMetallicRoughness.baseColorTexture) return;
+        const backCanvas = document.createElement('canvas');
+        backCanvas.width = 880;
+        backCanvas.height = 1070;
+        const bCtx = backCanvas.getContext('2d');
+        if (!originalBackUrl) originalBackUrl = await backMat.pbrMetallicRoughness.baseColorTexture.texture.source.createThumbnail(880, 1070);
+        const backImg = await loadImage(originalBackUrl);
+        bCtx.drawImage(backImg, 0, 0, 880, 1070);
+        bCtx.save();
+        bCtx.scale(1, -1);
+        bCtx.translate(0, -1070);
+        bCtx.fillStyle = "#505050";
+        bCtx.textBaseline = "middle";
+        bCtx.font = "bold 30px 'Special Elite', cursive";
+        const yPosition = 875;
+        const sidePadding = 146;
+        bCtx.textAlign = "left";
+        bCtx.fillText(slide.backLeft, sidePadding, yPosition);
+        bCtx.textAlign = "right";
+        bCtx.fillText(slide.backRight, 880 - sidePadding, yPosition);
+        bCtx.restore();
+        cache.backDataUrl = backCanvas.toDataURL();
+        const backTex = await modelViewer.createTexture(cache.backDataUrl);
+        backMat.pbrMetallicRoughness.baseColorTexture.setTexture(backTex);
+        backMat.pbrMetallicRoughness.setBaseColorFactor([1, 1, 1, 1]);
+      };
+
+      await Promise.all([applyPhoto(), applyFrameText(), applyBackText()]);
+      slideCache = cache;
+    }
+
+    document.getElementById('refresh-trait').addEventListener('click', async () => {
+      if (!modelReady) return;
+      pickRandomSlide();
+      showOverlay();
+      await applySlide();
+      hideOverlay();
+    });
+
+    // Initial load — fires once
+    modelViewer.addEventListener('load', async () => {
+      await document.fonts.load("30px 'Special Elite'");
+	  await document.fonts.load("400 30px 'VT323'");
+      await document.fonts.ready;
+
+      applyPBR();
+	  currentSlide = 0;
+	  slidePicked = 'BOOK: 1984'; // ← change this to whatever trait you want on first load
+	  await applySlide();
+      modelReady = true;
+      hideOverlay();
+    });
+
+	document.addEventListener('keydown', async (e) => {
+	  if (e.key === 'b' || e.key === 'B') {
+		const blob = await modelViewer.toBlob({ mimeType: 'image/webp', idealAspect: true });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `poster-${currentSlide}.webp`;
+		a.click();
+		URL.revokeObjectURL(url);
+	  }
+	});	
+	
+  </script>
+
+</body>
+</html>
